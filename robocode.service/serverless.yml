@@ -1,0 +1,25 @@
+service: robocode
+
+provider:
+  name: aws
+  runtime: java8
+  stage: dev
+  profile: pavel
+  region: eu-central-1
+  memorySize: 1024
+  timeout: 60
+  logRetentionInDays: 14
+  environment:
+    DEBUG: true
+
+package:
+  artifact: 'target/robocode-1.9.3.5-lambda.jar'
+
+functions:
+  runBattle:
+    handler: net.sf.robocode.service.RunBattleHandler
+    events:
+      - http:
+          path: /runBattle
+          method: post
+

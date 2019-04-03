@@ -16,6 +16,7 @@
         <module name="robocode.repository" />
         <module name="robocode.roborumble" />
         <module name="robocode.samples" />
+        <module name="robocode.service" />
         <module name="robocode.sound" />
         <module name="robocode.tests" />
         <module name="robocode.tests.robots" />
