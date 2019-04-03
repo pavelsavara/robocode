@@ -124,7 +124,7 @@ public class HiddenAccess {
 		// if other modules are .jar next to robocode.jar on same path, we will create classloader which will load them
 		// otherwise we rely on that they are already on classpath
 		StringBuilder classPath = new StringBuilder(System.getProperty("java.class.path", null));
-		ClassLoader loader = ClassLoader.getSystemClassLoader();
+		ClassLoader loader = HiddenAccess.class.getClassLoader();
 		String path = HiddenAccess.class.getProtectionDomain().getCodeSource().getLocation().getPath();
 
 		try {
