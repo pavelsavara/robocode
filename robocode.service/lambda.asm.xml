@@ -10,32 +10,38 @@
 <assembly>
 	<id>lambda</id>
 	<formats>
-		<format>jar</format>
+		<format>zip</format>
 	</formats>
 	<includeBaseDirectory>false</includeBaseDirectory>
 	<dependencySets>
-		<!-- robocode.api -> robocode.jar -->
+
 		<dependencySet>
 			<includes>
 				<include>net.sf.robocode:robocode.api</include>
 			</includes>
-
-			<unpack>true</unpack>
+			<outputDirectory>lib</outputDirectory>
+			<unpack>false</unpack>
 			<outputFileNameMapping>robocode.${artifact.extension}</outputFileNameMapping>
 		</dependencySet>
-		<!-- other libraries -->
+
 		<dependencySet>
 			<excludes>
-				<!-- Used for creating this assembly -->
 				<exclude>net.sf.robocode:robocode.distribution</exclude>
-				<!-- These are unpacked in distribution files -->
 				<exclude>net.sf.robocode:robocode.installer</exclude>
 				<exclude>net.sf.robocode:robocode.content</exclude>
 				<exclude>net.sf.robocode:robocode.samples</exclude>
-				<!-- Handled independently and renamed into roborumble.jar -->
+				<exclude>net.sf.robocode:robocode.api</exclude>
 				<exclude>net.sf.robocode:robocode.roborumble</exclude>
+				<exclude>net.sf.robocode:robocode.service</exclude>
 			</excludes>
+			<outputDirectory>lib</outputDirectory>
+			<unpack>false</unpack>
+		</dependencySet>
 
+		<dependencySet>
+			<includes>
+				<include>net.sf.robocode:robocode.service</include>
+			</includes>
 			<unpack>true</unpack>
 		</dependencySet>
 	</dependencySets>

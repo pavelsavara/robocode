@@ -23,21 +23,4 @@ public class RunBattleHandlerTest {
 		System.out.println("0 " + response.getResults()[0].getScore());
 		System.out.println("1 " + response.getResults()[1].getScore());
 	}
-
-	@Test
-	public void json() {
-		RunBattleHandler handler = new RunBattleHandler();
-
-		HashMap<String, Object> input = new HashMap<>();
-		input.put("body", "{\n" +
-				"  \"robots\": [\n" +
-				"    \"http://robocode-archive.strangeautomata.com/robots/slugzilla.Basilisk_2.10.jar\",\n" +
-				"    \"http://robocode-archive.strangeautomata.com/robots/voidious.Diamond_1.8.28.jar\"\n" +
-				"  ]\n" +
-				"}");
-		ApiGatewayResponse apiGatewayResponse = handler.handleRequest(input, null);
-
-		System.out.println(apiGatewayResponse.getBody());
-
-	}
 }

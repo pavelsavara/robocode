@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.ArrayList;
 
 public class RunBattleRequest {
-	RunBattleRequest() {
+	public RunBattleRequest() {
 		robots = new ArrayList<>();
 	}
 

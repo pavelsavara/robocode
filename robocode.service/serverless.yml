@@ -11,9 +11,10 @@ provider:
   logRetentionInDays: 14
   environment:
     DEBUG: true
+    JAVA_TOOL_OPTIONS: '-DWORKINGDIRECTORY=/tmp'
 
 package:
-  artifact: 'target/robocode-1.9.3.5-lambda.jar'
+  artifact: 'target/robocode-1.9.3.5-lambda.zip'
 
 functions:
   runBattle:
