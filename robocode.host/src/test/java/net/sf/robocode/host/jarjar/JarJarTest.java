@@ -55,7 +55,7 @@ public class JarJarTest {
 		isr.close();
 		inputStream.close();
 	}
-
+/*
 	@Test
 	public void runClassLoader() throws IOException, ClassNotFoundException {
 		String clas = "tested.robots.Ahead";
@@ -68,5 +68,5 @@ public class JarJarTest {
 		ClassLoader ucl = new URLClassLoader(new URL[] { u});
 
 		ucl.loadClass(clas);
-	}
+	}*/
 }
