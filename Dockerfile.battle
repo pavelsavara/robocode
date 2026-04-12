@@ -1,8 +1,9 @@
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM eclipse-temurin:21-jdk AS build
 
-# Build Robocode from source
 WORKDIR /build
 COPY . /build/
+
+# Gradle will auto-download JDK 8 via Foojay resolver
 RUN chmod +x gradlew && ./gradlew build -x test
 
 # Install headless — unpack setup JAR (it's an IzPack installer)
