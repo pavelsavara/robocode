@@ -33,7 +33,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       total_battles: ${{ steps.plan.outputs.total_battles }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: actions-rumble
 
@@ -73,7 +73,7 @@ jobs:
           echo "total_battles=$TOTAL" >> "$GITHUB_OUTPUT"
           echo "Planned $TOTAL battles in $CHUNKS chunks"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: battle-plan
           path: battle-plan.json
@@ -90,7 +90,7 @@ jobs:
       fail-fast: false
     steps:
       # Download battle plan
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: battle-plan
 
@@ -121,7 +121,7 @@ jobs:
             --out results/ \
             --rounds ${{ inputs.rounds || '35' }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: results-chunk-${{ matrix.chunk }}
           path: results/results.json
@@ -131,7 +131,7 @@ jobs:
     needs: [battles]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: actions-rumble
 
@@ -148,7 +148,7 @@ jobs:
           fi
 
       # Download all result chunks from this run
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: results-chunk-*
           path: all-results/
