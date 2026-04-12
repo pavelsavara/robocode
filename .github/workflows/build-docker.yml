@@ -1,0 +1,34 @@
+# build-docker.yml — Build and push the battle runner Docker image to GHCR.
+name: Build Docker Image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: actions-rumble
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.battle
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/battle-runner:latest
+            ghcr.io/${{ github.repository }}/battle-runner:${{ github.sha }}
