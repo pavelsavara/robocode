@@ -1,0 +1,15 @@
+{
+    "name": "robocode-rumble",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "description": "GitHub Actions Rumble — battle scheduling, scoring, and static page generation for Robocode",
+    "scripts": {
+        "test": "node --test rumble/tests/",
+        "run-battle": "node rumble/scripts/run-battle.mjs",
+        "plan-battles": "node rumble/scripts/plan-battles.mjs",
+        "compute-rankings": "node rumble/scripts/compute-rankings.mjs",
+        "generate-pages": "node rumble/scripts/generate-pages.mjs",
+        "scrape-wiki": "node rumble/scripts/scrape-wiki.mjs"
+    }
+}
