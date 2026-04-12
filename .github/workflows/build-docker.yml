@@ -34,11 +34,13 @@ jobs:
       - name: Build Robocode
         run: ./gradlew build -x test
 
-      - name: Install Robocode headless
+      - name: Extract Robocode from setup JAR
         run: |
           mkdir -p robocode-home
           cd robocode-home
-          java -jar $GITHUB_WORKSPACE/build/robocode-*-setup.jar -q
+          unzip -o $GITHUB_WORKSPACE/build/robocode-*-setup.jar \
+            libs/* robots/* compilers/* battles/* robocode.bat robocode.sh \
+            -x 'net/*' 'META-INF/*'
           ls -la libs/
 
       - name: Log in to GHCR
@@ -57,3 +59,11 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/battle-runner:latest
             ghcr.io/${{ github.repository }}/battle-runner:${{ github.sha }}
+
+      - name: Make package public
+        run: |
+          gh api --method PUT \
+            /user/packages/container/robocode%2Fbattle-runner/visibility \
+            -f visibility=public || echo "Could not set visibility (may need manual config)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -84,9 +84,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/pavelsavara/robocode/battle-runner:latest
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
       max-parallel: 20

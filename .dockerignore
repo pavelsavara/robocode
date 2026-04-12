@@ -1,32 +1,9 @@
 # Ignore everything
 **
 
-# Allow Gradle build system
-!/build.gradle.kts
-!/settings.gradle.kts
-!/gradle.properties
-!/gradlew
-!/gradlew.bat
-!/gradle
-!/buildSrc
-!/robocode.api
-!/robocode.battle
-!/robocode.content
-!/robocode.core
-!/robocode.host
-!/robocode.installer
-!/robocode.main
-!/robocode.repository
-!/robocode.roborumble
-!/robocode.samples
-!/robocode.sound
-!/robocode.tests
-!/robocode.tests.robots
-!/robocode.ui
-!/robocode.ui.editor
-
-# Allow pre-built artifacts
-!/build
+# Allow pre-built Robocode installation and battle runner script
+!/robocode-home
+!/rumble/scripts/run-battle.mjs
 
 # Allow rumble scripts
 !/rumble/scripts
