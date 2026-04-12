@@ -100,10 +100,9 @@ jobs:
           apk add --no-cache git
           git clone --depth=1 --branch=data/robots --single-branch \
             https://github.com/${{ github.repository }}.git /tmp/data-robots || true
-          if [ -d /tmp/data-robots/robots ]; then
-            cp /tmp/data-robots/robots/*.jar /opt/robocode/robots/ 2>/dev/null || true
-          fi
-          ls /opt/robocode/robots/ || echo "Using built-in sample bots only"
+          cp /tmp/data-robots/*.jar /opt/robocode/robots/ 2>/dev/null || true
+          echo "Robots loaded:"
+          ls /opt/robocode/robots/*.jar 2>/dev/null | wc -l
 
       # Run this chunk's battles
       - name: Run battles (chunk ${{ matrix.chunk }})
