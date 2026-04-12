@@ -68,7 +68,7 @@ function runSingleBattle(botA, botB) {
             '-nodisplay',
         ], {
             cwd: robocodeDir,
-            timeout: 120_000, // 2 min max per battle
+            timeout: 180_000, // 3 min max per battle
             stdio: ['pipe', 'pipe', 'pipe'],
         });
     } catch (err) {
