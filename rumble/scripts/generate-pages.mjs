@@ -97,8 +97,8 @@ function botSlug(name) {
     return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
-// Robocode logo (hosted on GitHub pages or inline)
-const LOGO_URL = 'https://robocode.sourceforge.io/images/robocode_logo_tanks.png';
+// Robocode logo (local copy in flags/)
+const LOGO_URL = 'flags/robocode_logo_tanks.png';
 
 // CSS — styled after robo-code.blogspot.com (dark gray, green accents)
 const css = `
@@ -391,7 +391,7 @@ function generateBotPage(bot) {
 <body>
 <header><div class="container">
   <div class="header-inner">
-    <div class="header-logo"><img src="${LOGO_URL}" alt="Robocode"></div>
+    <div class="header-logo"><img src="../${LOGO_URL}" alt="Robocode"></div>
     <div class="header-text">
       <h1><a href="../index.html">Rumble</a> &rsaquo; ${flag}${escapeHtml(bot.name)}</h1>
       <div class="tagline">Build the best - destroy the rest!</div>
@@ -564,7 +564,7 @@ function generateComparePage(botAEntry, botBEntry) {
 <body>
 <header><div class="container">
   <div class="header-inner">
-    <div class="header-logo"><img src="${LOGO_URL}" alt="Robocode"></div>
+    <div class="header-logo"><img src="../${LOGO_URL}" alt="Robocode"></div>
     <div class="header-text">
       <h1><a href="../index.html">Rumble</a> &rsaquo; Compare</h1>
       <div class="tagline">Build the best - destroy the rest!</div>

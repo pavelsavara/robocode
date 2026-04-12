@@ -1,0 +1,32 @@
+name: Bot Submission
+description: Submit a robot to the Robocode Rumble
+title: "[Bot] "
+labels: ["bot-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Submit your robot to the Robocode Rumble! Provide the bot's fully qualified name
+        (with version) and a direct download URL for the JAR file.
+  - type: input
+    id: bot_name
+    attributes:
+      label: Bot Name
+      description: "Fully qualified name with version (e.g., `voidious.Diamond 1.8.22`)"
+      placeholder: "package.BotName version"
+    validations:
+      required: true
+  - type: input
+    id: jar_url
+    attributes:
+      label: JAR URL
+      description: "Direct download URL for the robot JAR file"
+      placeholder: "https://robowiki.net/..."
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: "Any additional information about the robot"
+      placeholder: "Optional notes..."

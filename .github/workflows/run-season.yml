@@ -1,0 +1,286 @@
+# run-season.yml — Orchestrator workflow for a full rumble season run.
+# Builds Robocode, plans battles, runs them in parallel, computes rankings, publishes pages.
+#
+# Trigger: manual only (workflow_dispatch)
+
+name: Run Rumble Season
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_parallel:
+        description: 'Maximum parallel battle jobs'
+        required: false
+        default: '20'
+        type: string
+      rounds:
+        description: 'Rounds per battle'
+        required: false
+        default: '35'
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  # ─── Step 1: Build Robocode and plan battles ───
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      total_battles: ${{ steps.plan.outputs.total_battles }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: actions-rumble
+          lfs: true
+
+      # Fetch participants from data branch
+      - name: Fetch participants
+        run: |
+          git fetch origin data/robots --depth=1 || true
+          if git show origin/data/robots:participants.txt > participants.txt 2>/dev/null; then
+            echo "Using participants from data/robots branch"
+          else
+            echo "No participants found, using sample bots"
+            cat > participants.txt << 'EOF'
+          # Sample bots for initial testing
+          sample.Crazy
+          sample.Fire
+          sample.Walls
+          sample.Corners
+          sample.SpinBot
+          sample.RamFire
+          sample.SittingDuck
+          sample.Tracker
+          EOF
+          fi
+          cat participants.txt
+
+      # Plan battles
+      - name: Plan battles
+        id: plan
+        run: |
+          node rumble/scripts/plan-battles.mjs \
+            --participants participants.txt \
+            --chunks ${{ inputs.max_parallel || '20' }} \
+            --out battle-plan.json
+
+          # Create matrix JSON for the battles job
+          TOTAL=$(jq '.total_battles' battle-plan.json)
+          CHUNKS=$(jq '.num_chunks' battle-plan.json)
+          MATRIX=$(jq -c '{chunk: [range(.num_chunks)]}' battle-plan.json)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "total_battles=$TOTAL" >> "$GITHUB_OUTPUT"
+          echo "Planned $TOTAL battles in $CHUNKS chunks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: battle-plan
+          path: battle-plan.json
+
+  # ─── Step 2: Build Robocode from source ───
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: actions-rumble
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            8
+            21
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Build Robocode
+        run: ./gradlew build -x test
+
+      - name: Install Robocode headless
+        run: |
+          java -jar build/robocode-*-setup.jar
+          ls -la ~/robocode/libs/
+
+      - name: Package Robocode installation
+        run: tar czf robocode-install.tar.gz -C ~ robocode
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: robocode-install
+          path: robocode-install.tar.gz
+
+  # ─── Step 3: Run battles in parallel ───
+  battles:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+      max-parallel: 20
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: actions-rumble
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Download Robocode installation
+      - uses: actions/download-artifact@v4
+        with:
+          name: robocode-install
+
+      - name: Extract Robocode
+        run: tar xzf robocode-install.tar.gz -C ~
+
+      # Download battle plan
+      - uses: actions/download-artifact@v4
+        with:
+          name: battle-plan
+
+      # Fetch robot JARs from data branch
+      - name: Fetch robot JARs
+        run: |
+          git fetch origin data/robots --depth=1 || true
+          mkdir -p ~/robocode/robots
+          if git ls-tree origin/data/robots robots/ 2>/dev/null; then
+            git checkout origin/data/robots -- robots/ 2>/dev/null || true
+            cp -r robots/* ~/robocode/robots/ 2>/dev/null || true
+          fi
+          ls ~/robocode/robots/ || echo "Using built-in sample bots only"
+
+      # Extract this chunk's battles and run them
+      - name: Run battles (chunk ${{ matrix.chunk }})
+        run: |
+          jq -c ".chunks[${{ matrix.chunk }}]" battle-plan.json > chunk-battles.json
+          echo "Running $(jq length chunk-battles.json) battles..."
+
+          node rumble/scripts/run-battle.mjs \
+            --robocode-dir ~/robocode \
+            --battles chunk-battles.json \
+            --out results/ \
+            --rounds ${{ inputs.rounds || '35' }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: results-chunk-${{ matrix.chunk }}
+          path: results/results.json
+
+  # ─── Step 4: Compute rankings and publish pages ───
+  publish:
+    needs: [battles]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: actions-rumble
+
+      # Fetch historical results from data branch
+      - name: Fetch historical results
+        run: |
+          mkdir -p results
+          git fetch origin data/robots --depth=1 || true
+          if git show origin/data/robots:results/ > /dev/null 2>&1; then
+            git checkout origin/data/robots -- results/ 2>/dev/null || true
+            echo "Loaded $(ls results/*.json 2>/dev/null | wc -l) historical result files"
+          else
+            echo "No historical results found"
+          fi
+
+      # Download all result chunks from this run
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-chunk-*
+          path: all-results/
+          merge-multiple: false
+
+      # Merge new results with historical
+      - name: Merge results
+        run: |
+          # Append new chunk results (timestamped to avoid overwriting historical)
+          RUN_ID="${{ github.run_id }}"
+          for f in all-results/results-chunk-*/results.json; do
+            chunk=$(basename $(dirname "$f") | sed 's/results-chunk-//')
+            cp "$f" "results/run-${RUN_ID}-chunk-${chunk}.json"
+          done
+          echo "Total result files: $(ls results/*.json 2>/dev/null | wc -l)"
+
+      # Compute rankings from all results (historical + new)
+      - name: Compute rankings
+        run: |
+          node rumble/scripts/compute-rankings.mjs \
+            --results results/ \
+            --out rankings.json
+
+      # Generate static pages
+      - name: Generate pages
+        run: |
+          node rumble/scripts/generate-pages.mjs \
+            --rankings rankings.json \
+            --results results/ \
+            --out site/
+
+      # Save results to data branch
+      - name: Save results to data branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch or create data/robots branch
+          git fetch origin data/robots --depth=1 || true
+
+          WORK=$(mktemp -d)
+          git worktree add "$WORK" origin/data/robots 2>/dev/null || {
+            git worktree add --orphan "$WORK" data/robots
+          }
+
+          # Copy results
+          mkdir -p "$WORK/results"
+          cp results/*.json "$WORK/results/"
+          cp rankings.json "$WORK/"
+
+          cd "$WORK"
+          git add -A
+          git diff --cached --quiet || {
+            git commit -m "Update results $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push origin HEAD:data/robots
+          }
+          cd -
+          git worktree remove "$WORK" --force
+
+      # Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          WORK=$(mktemp -d)
+          git fetch origin gh-pages --depth=1 || true
+          git worktree add "$WORK" origin/gh-pages 2>/dev/null || {
+            git worktree add --orphan "$WORK" gh-pages
+          }
+
+          # Copy site files
+          rm -rf "$WORK"/*
+          cp -r site/* "$WORK/"
+
+          cd "$WORK"
+          git add -A
+          git diff --cached --quiet || {
+            git commit -m "Update rankings $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push origin HEAD:gh-pages
+          }
+          cd -
+          git worktree remove "$WORK" --force

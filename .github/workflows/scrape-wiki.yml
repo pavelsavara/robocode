@@ -1,0 +1,73 @@
+# scrape-wiki.yml — Fetch RoboRumble participants from RoboWiki and store bot JARs.
+#
+# Downloads robot JARs and updates participants.txt in the data/robots branch.
+# Trigger: manual only
+
+name: Scrape Wiki Participants
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_bots:
+        description: 'Maximum number of bots to fetch'
+        required: false
+        default: '30'
+        type: string
+      skip_download:
+        description: 'Skip downloading JARs (update list only)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: actions-rumble
+          lfs: true
+
+      # Fetch existing data branch
+      - name: Fetch data branch
+        run: |
+          git fetch origin data/robots --depth=1 || true
+          WORK=$(mktemp -d)
+          git worktree add "$WORK" origin/data/robots 2>/dev/null || {
+            git worktree add --orphan "$WORK" data/robots
+          }
+          echo "DATA_WORK=$WORK" >> "$GITHUB_ENV"
+          mkdir -p "$WORK/robots"
+
+      # Run scraper
+      - name: Scrape participants
+        run: |
+          node rumble/scripts/scrape-wiki.mjs \
+            --max-bots ${{ inputs.max_bots || '30' }} \
+            --out-dir "$DATA_WORK/robots" \
+            --participants "$DATA_WORK/participants.txt" \
+            ${{ inputs.skip_download && '--skip-download' || '' }}
+
+      # Commit and push
+      - name: Commit changes
+        run: |
+          cd "$DATA_WORK"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Track JARs with LFS
+          git lfs install
+          git lfs track "robots/*.jar"
+          git add .gitattributes robots/ participants.txt
+
+          git diff --cached --quiet || {
+            git commit -m "Scrape wiki participants $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push origin HEAD:data/robots
+          }
+
+      - name: Cleanup
+        if: always()
+        run: git worktree remove "$DATA_WORK" --force 2>/dev/null || true

@@ -1,0 +1,29 @@
+FROM eclipse-temurin:21-jdk-alpine AS build
+
+# Build Robocode from source
+WORKDIR /build
+COPY . /build/
+RUN chmod +x gradlew && ./gradlew build -x test
+
+# Install headless — unpack setup JAR (it's an IzPack installer)
+RUN mkdir -p /opt/robocode && \
+    cd /opt/robocode && \
+    java -jar /build/build/robocode-*-setup.jar -q
+
+FROM eclipse-temurin:21-jre-alpine
+
+# Install Node.js for battle runner script
+RUN apk add --no-cache nodejs
+
+# Copy Robocode installation
+COPY --from=build /opt/robocode /opt/robocode
+
+WORKDIR /opt/robocode
+
+# Copy battle runner script
+COPY rumble/scripts/run-battle.mjs /opt/rumble/run-battle.mjs
+
+ENV ROBOCODE_DIR=/opt/robocode
+ENV NOSECURITY=true
+
+ENTRYPOINT ["node", "/opt/rumble/run-battle.mjs"]
