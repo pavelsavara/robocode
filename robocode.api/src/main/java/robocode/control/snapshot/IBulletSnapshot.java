@@ -128,4 +128,20 @@ public interface IBulletSnapshot {
 	 * @return contestantIndex of the owner
 	 */
 	int getOwnerIndex();
+
+	/**
+	 * Returns the energy level of the victim robot recorded on this bullet's
+	 * {@code BulletHitEvent} at the moment the bullet hit, or {@code Double.NaN}
+	 * unless this bullet is in the {@link BulletState#HIT_VICTIM} state.
+	 * <p>
+	 * This is a diagnostic/reconstruction oracle: when several bullets hit the
+	 * same robot on the same turn, the per-event victim energy depends on the
+	 * engine's bullet update order and cannot be recovered from post-physics
+	 * snapshots.
+	 *
+	 * @return the victim's energy recorded at hit time, or {@code Double.NaN}.
+	 *
+	 * @since 1.9.5.4
+	 */
+	double getVictimEnergyAtHit();
 }

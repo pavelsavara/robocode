@@ -12,8 +12,10 @@ import net.sf.robocode.battle.peer.RobotPeer;
 import net.sf.robocode.peer.DebugProperty;
 import net.sf.robocode.peer.ExecCommands;
 import net.sf.robocode.serialization.*;
+import robocode.control.snapshot.ICollisionSnapshot;
 import robocode.control.snapshot.IRobotSnapshot;
 import robocode.control.snapshot.IScoreSnapshot;
+import robocode.control.snapshot.ITurnEnergyBreakdown;
 import robocode.control.snapshot.RobotState;
 import robocode.util.Utils;
 
@@ -124,6 +126,21 @@ public final class RobotSnapshot implements Serializable, IXmlSerializable, IRob
 	/** Snapshot of score of the robot */
 	private IScoreSnapshot robotScoreSnapshot;
 
+	/** Per-turn signed energy breakdown (test-only reconstruction oracle; null unless captured) */
+	private ITurnEnergyBreakdown energyChanges;
+
+	/** Realized translational velocity before any collision zeroed it (NaN unless captured) */
+	private double realizedVelocity = Double.NaN;
+
+	/** Robot-to-robot collisions resolved this turn (empty unless captured) */
+	private ICollisionSnapshot[] collisions = new ICollisionSnapshot[0];
+
+	/** Whether the engine scanned for this robot this turn */
+	private boolean scanning;
+
+	/** Whether the engine recorded a skipped turn for this robot this turn */
+	private boolean turnSkipped;
+
 	/**
 	 * Creates a snapshot of a robot that must be filled out with data later.
 	 */
@@ -183,6 +200,31 @@ public final class RobotSnapshot implements Serializable, IXmlSerializable, IRob
 		}
 
 		robotScoreSnapshot = new ScoreSnapshot(robot.getName(), robot.getRobotStatistics());
+
+		// Per-turn reconstruction diagnostics (test-only; populated only while testing is enabled).
+		if (robot.hasTurnDiagnostics()) {
+			energyChanges = new TurnEnergyBreakdown(
+					robot.getFireCostEnergyChange(),
+					robot.getHitByBulletEnergyChange(),
+					robot.getHitOpponentEnergyChange(),
+					robot.getHitRobotEnergyChange(),
+					robot.getHitWallEnergyChange(),
+					robot.getZapEnergyChange());
+
+			realizedVelocity = robot.getRealizedVelocity();
+
+			final List<RobotPeer.CollisionRecord> records = robot.getTurnCollisions();
+
+			collisions = new ICollisionSnapshot[records.size()];
+			for (int i = 0; i < collisions.length; i++) {
+				final RobotPeer.CollisionRecord r = records.get(i);
+
+				collisions[i] = new CollisionSnapshot(r.otherRobotIndex, r.atFault, r.bearingRadians, r.otherEnergyAtHit);
+			}
+
+			scanning = robot.isScanningThisTurn();
+			turnSkipped = robot.wasTurnSkipped();
+		}
 	}
 
 	@Override
@@ -424,6 +466,41 @@ public final class RobotSnapshot implements Serializable, IXmlSerializable, IRob
 	 */
 	public IScoreSnapshot getScoreSnapshot() {
 		return robotScoreSnapshot;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public ITurnEnergyBreakdown getEnergyChanges() {
+		return energyChanges;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public double getRealizedVelocity() {
+		return realizedVelocity;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public ICollisionSnapshot[] getCollisions() {
+		return collisions;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public boolean isScanning() {
+		return scanning;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public boolean wasTurnSkipped() {
+		return turnSkipped;
 	}
 
 	/**

@@ -127,6 +127,44 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 	private final AtomicBoolean isSleeping = new AtomicBoolean(false);
 	private final AtomicBoolean halt = new AtomicBoolean(false);
 
+	// test-only ground-truth capture (gated by RobocodeProperties.isTestingOn())
+	private volatile Event[] capturedEvents;
+	private volatile IExecCommands capturedCommands;
+	private volatile RobotStatus capturedStatus;
+	private volatile int capturedGroundTruthTurn = -1;
+
+	// test-only per-turn reconstruction diagnostics (gated by RobocodeProperties.isTestingOn());
+	// reset at the start of each turn in performLoadCommands and accumulated as the engine
+	// applies energy/collision/scan effects, then copied into the RobotSnapshot.
+	private boolean turnDiagnosticsCaptured;
+	private double etFireCost;
+	private double etHitByBullet;
+	private double etHitOpponent;
+	private double etHitRobot;
+	private double etHitWall;
+	private double etZap;
+	private double realizedVelocity = Double.NaN;
+	private boolean scannedThisTurn;
+	private final List<CollisionRecord> turnCollisions = new ArrayList<CollisionRecord>();
+
+	/**
+	 * A single robot-to-robot collision the engine resolved for this robot during
+	 * a turn (test-only diagnostic data; see {@link #getTurnCollisions()}).
+	 */
+	public static final class CollisionRecord {
+		public final int otherRobotIndex;
+		public final boolean atFault;
+		public final double bearingRadians;
+		public final double otherEnergyAtHit;
+
+		public CollisionRecord(int otherRobotIndex, boolean atFault, double bearingRadians, double otherEnergyAtHit) {
+			this.otherRobotIndex = otherRobotIndex;
+			this.atFault = atFault;
+			this.bearingRadians = bearingRadians;
+			this.otherEnergyAtHit = otherEnergyAtHit;
+		}
+	}
+
 	// last and current execution time and detecting skipped turns
 	private int lastExecutionTime = -1;
 	private int currentExecutionTime;
@@ -540,7 +578,198 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 	}
 
 	private List<Event> readoutEvents() {
-		return events.getAndSet(new EventQueue());
+		List<Event> turnEvents = events.getAndSet(new EventQueue());
+
+		if (RobocodeProperties.isTestingOn()) {
+			captureGroundTruth(turnEvents);
+		}
+		return turnEvents;
+	}
+
+	/**
+	 * Captures the per-turn ground truth for this robot: a copy of the events
+	 * the engine just delivered plus a snapshot of the realized command state.
+	 * Called on the robot thread from {@link #readoutEvents()} while testing is
+	 * enabled. At this point {@code commands.get()} still holds the command
+	 * state that produced the elapsed turn (including the fired bullets and the
+	 * gun/radar adjustment toggles).
+	 */
+	private void captureGroundTruth(List<Event> turnEvents) {
+		final int turn = (battle != null) ? battle.getTime() : -1;
+
+		capturedEvents = turnEvents.toArray(new Event[0]);
+		capturedCommands = commands.get();
+		capturedStatus = status.get();
+		capturedGroundTruthTurn = turn;
+	}
+
+	/**
+	 * Returns the events the engine delivered to this robot on the given turn,
+	 * or an empty array when no capture matches the turn (e.g. for a robot that
+	 * did not execute on the turn). Called on the battle thread from
+	 * {@code Battle.finalizeTurn()} while testing is enabled.
+	 */
+	public Event[] readGroundTruthEvents(int turn) {
+		final Event[] captured = capturedEvents;
+
+		if (captured != null && capturedGroundTruthTurn == turn) {
+			return captured;
+		}
+		return new Event[0];
+	}
+
+	/**
+	 * Returns the realized command snapshot of this robot for the given turn,
+	 * falling back to the current command state when no capture matches. Called
+	 * on the battle thread from {@code Battle.finalizeTurn()} while testing is
+	 * enabled.
+	 */
+	public IExecCommands readGroundTruthCommands(int turn) {
+		final IExecCommands captured = capturedCommands;
+
+		if (captured != null && capturedGroundTruthTurn == turn) {
+			return captured;
+		}
+		return commands.get();
+	}
+
+	/**
+	 * Returns the {@link RobotStatus} the engine delivered to this robot on the
+	 * given turn (the status carried in its {@code ExecResults} and surfaced to
+	 * the robot as a {@code StatusEvent}), or {@code null} when no capture
+	 * matches the turn. Called on the battle thread from
+	 * {@code Battle.finalizeTurn()} while testing is enabled.
+	 */
+	public RobotStatus readGroundTruthStatus(int turn) {
+		final RobotStatus captured = capturedStatus;
+
+		if (captured != null && capturedGroundTruthTurn == turn) {
+			return captured;
+		}
+		return null;
+	}
+
+	// --- test-only per-turn reconstruction diagnostics ---------------------------------------
+
+	/**
+	 * Resets the per-turn reconstruction diagnostics at the start of the turn.
+	 * Called from {@link #performLoadCommands()} (the first per-robot phase of the
+	 * turn) so the accumulators below capture the whole turn. A no-op unless
+	 * testing is enabled.
+	 */
+	private void resetTurnDiagnostics() {
+		turnDiagnosticsCaptured = RobocodeProperties.isTestingOn();
+		if (!turnDiagnosticsCaptured) {
+			return;
+		}
+		etFireCost = 0;
+		etHitByBullet = 0;
+		etHitOpponent = 0;
+		etHitRobot = 0;
+		etHitWall = 0;
+		etZap = 0;
+		realizedVelocity = Double.NaN;
+		scannedThisTurn = false;
+		turnCollisions.clear();
+	}
+
+	public void recordFireCostEnergy(double power) {
+		if (turnDiagnosticsCaptured) {
+			etFireCost -= power;
+		}
+	}
+
+	public void recordHitByBulletEnergy(double damage) {
+		if (turnDiagnosticsCaptured) {
+			etHitByBullet -= damage;
+		}
+	}
+
+	public void recordHitOpponentEnergy(double bonus) {
+		if (turnDiagnosticsCaptured) {
+			etHitOpponent += bonus;
+		}
+	}
+
+	public void recordHitRobotEnergy(double damage) {
+		if (turnDiagnosticsCaptured) {
+			etHitRobot -= damage;
+		}
+	}
+
+	public void recordHitWallEnergy(double damage) {
+		if (turnDiagnosticsCaptured) {
+			etHitWall -= damage;
+		}
+	}
+
+	public void recordZapEnergy(double amount) {
+		if (turnDiagnosticsCaptured) {
+			etZap -= amount;
+		}
+	}
+
+	public void recordCollision(int otherRobotIndex, boolean atFault, double bearingRadians, double otherEnergyAtHit) {
+		if (turnDiagnosticsCaptured) {
+			turnCollisions.add(new CollisionRecord(otherRobotIndex, atFault, bearingRadians, otherEnergyAtHit));
+		}
+	}
+
+	/**
+	 * @return {@code true} if per-turn reconstruction diagnostics were captured
+	 *         for the current turn (i.e. testing is enabled).
+	 */
+	public boolean hasTurnDiagnostics() {
+		return turnDiagnosticsCaptured;
+	}
+
+	public double getFireCostEnergyChange() {
+		return etFireCost;
+	}
+
+	public double getHitByBulletEnergyChange() {
+		return etHitByBullet;
+	}
+
+	public double getHitOpponentEnergyChange() {
+		return etHitOpponent;
+	}
+
+	public double getHitRobotEnergyChange() {
+		return etHitRobot;
+	}
+
+	public double getHitWallEnergyChange() {
+		return etHitWall;
+	}
+
+	public double getZapEnergyChange() {
+		return etZap;
+	}
+
+	/**
+	 * @return the realized translational velocity this turn before any collision
+	 *         handler zeroed it; falls back to the current velocity when no
+	 *         collision-free value was captured.
+	 */
+	public double getRealizedVelocity() {
+		return Double.isNaN(realizedVelocity) ? velocity : realizedVelocity;
+	}
+
+	public boolean isScanningThisTurn() {
+		return scannedThisTurn;
+	}
+
+	public List<CollisionRecord> getTurnCollisions() {
+		return turnCollisions;
+	}
+
+	/**
+	 * @return {@code true} if this (alive) robot did not execute the current
+	 *         battle turn, i.e. the engine is skipping the turn for it.
+	 */
+	public boolean wasTurnSkipped() {
+		return isAlive() && battle != null && currentExecutionTime != battle.getTime();
 	}
 
 	private List<TeamMessage> readoutTeamMessages() {
@@ -833,6 +1062,8 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 	public void performLoadCommands() {
 		currentCommands = commands.get();
 
+		resetTurnDiagnostics();
+
 		fireBullets(currentCommands.getBullets());
 
 		if (currentCommands.isScan()) {
@@ -870,6 +1101,8 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 					min(max(bulletCmd.getPower(), Rules.MIN_BULLET_POWER), Rules.MAX_BULLET_POWER));
 
 			updateEnergy(-firePower);
+
+			recordFireCostEnergy(firePower);
 
 			gunHeat += Rules.getGunHeat(firePower);
 
@@ -919,6 +1152,12 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 		updateRadarHeading();
 		updateMovement();
 
+		// Capture the realized translational velocity this turn before any collision
+		// handler below zeroes it (test-only reconstruction diagnostic).
+		if (turnDiagnosticsCaptured) {
+			realizedVelocity = velocity;
+		}
+
 		// At this point, robot has turned then moved.
 		// We could be touching a wall or another bot...
 
@@ -953,6 +1192,12 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 	public void performScan(List<RobotPeer> robots) {
 		if (isDead()) {
 			return;
+		}
+
+		// Capture whether the engine will perform a scan for this robot this turn
+		// before the flag is consumed below (test-only reconstruction diagnostic).
+		if (turnDiagnosticsCaptured) {
+			scannedThisTurn = scan;
 		}
 
 		turnedRadarWithGun = false;
@@ -1047,6 +1292,9 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 					this.updateEnergy(-Rules.ROBOT_HIT_DAMAGE);
 					otherRobot.updateEnergy(-Rules.ROBOT_HIT_DAMAGE);
 
+					this.recordHitRobotEnergy(Rules.ROBOT_HIT_DAMAGE);
+					otherRobot.recordHitRobotEnergy(Rules.ROBOT_HIT_DAMAGE);
+
 					if (otherRobot.energy == 0) {
 						if (otherRobot.isAlive()) {
 							otherRobot.kill();
@@ -1067,6 +1315,11 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 					otherRobot.addEvent(
 							new HitRobotEvent(getNameForEvent(this),
 							normalRelativeAngle(PI + angle - otherRobot.getBodyHeading()), energy, false));
+
+					this.recordCollision(otherRobot.getRobotIndex(), atFault,
+							normalRelativeAngle(angle - bodyHeading), otherRobot.energy);
+					otherRobot.recordCollision(this.getRobotIndex(), false,
+							normalRelativeAngle(PI + angle - otherRobot.getBodyHeading()), energy);
 				}
 			}
 		}
@@ -1149,6 +1402,7 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 
 			// Update energy, but do not reset inactiveTurnCount
 			if (statics.isAdvancedRobot()) {
+				recordHitWallEnergy(Rules.getWallHitDamage(velocity));
 				setEnergy(energy - Rules.getWallHitDamage(velocity), false);
 			}
 
@@ -1237,6 +1491,7 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 
 			// Update energy, but do not reset inactiveTurnCount
 			if (statics.isAdvancedRobot()) {
+				recordHitWallEnergy(Rules.getWallHitDamage(velocity));
 				setEnergy(energy - Rules.getWallHitDamage(velocity), false);
 			}
 
@@ -1579,12 +1834,14 @@ public final class RobotPeer implements IRobotPeerBattle, IRobotPeer {
 			kill();
 			return;
 		}
+		final double energyBeforeZap = energy;
 		energy -= abs(zapAmount);
 		if (energy < .1) {
 			energy = 0;
 			currentCommands.setDistanceRemaining(0);
 			currentCommands.setBodyTurnRemaining(0);
 		}
+		recordZapEnergy(energyBeforeZap - energy);
 	}
 
 	public void setRunning(boolean value) {

@@ -140,7 +140,7 @@ public class URLJarCollector {
 
 	// Added due to bug fix [2867326] - Lockup on start if too many bots in robots dir (cont'd).
 	public synchronized static void closeJarURLConnection(URL url) {
-		if (url != null) {
+		if (url != null && fileCache != null) {
 			for (Iterator<?> it = fileCache.keySet().iterator(); it.hasNext();) {
 				Object urlJarFile = it.next();
 

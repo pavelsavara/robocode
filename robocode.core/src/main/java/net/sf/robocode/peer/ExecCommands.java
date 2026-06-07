@@ -22,7 +22,7 @@ import java.util.List;
 /**
  * @author Pavel Savara (original)
  */
-public final class ExecCommands implements Serializable {
+public final class ExecCommands implements IExecCommands, Serializable {
 	private static final long serialVersionUID = 1L;
 	public static final int defaultBodyColor = 0xFF29298C;
 	public static final int defaultGunColor = 0xFF29298C;
@@ -235,6 +235,15 @@ public final class ExecCommands implements Serializable {
 
 	public List<BulletCommand> getBullets() {
 		return bullets;
+	}
+
+	public double[] getFirePowers() {
+		final double[] firePowers = new double[bullets.size()];
+
+		for (int i = 0; i < firePowers.length; i++) {
+			firePowers[i] = bullets.get(i).getPower();
+		}
+		return firePowers;
 	}
 
 	public Object getGraphicsCalls() {

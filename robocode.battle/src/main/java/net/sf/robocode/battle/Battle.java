@@ -18,6 +18,7 @@ import net.sf.robocode.host.ICpuManager;
 import net.sf.robocode.host.IHostManager;
 import net.sf.robocode.io.Logger;
 import net.sf.robocode.io.RobocodeProperties;
+import net.sf.robocode.peer.IExecCommands;
 import net.sf.robocode.repository.IRobotItem;
 import net.sf.robocode.security.HiddenAccess;
 import net.sf.robocode.settings.ISettingsManager;
@@ -455,7 +456,26 @@ public final class Battle extends BaseBattle {
 
 	@Override
 	protected void finalizeTurn() {
-		eventDispatcher.onTurnEnded(new TurnEndedEvent(new TurnSnapshot(this, robots, bullets, true)));
+		Event[][] groundTruthEvents = null;
+		IExecCommands[] groundTruthCommands = null;
+		RobotStatus[] groundTruthStatus = null;
+
+		if (RobocodeProperties.isTestingOn()) {
+			final int currentTurn = getTime();
+
+			groundTruthEvents = new Event[robots.size()][];
+			groundTruthCommands = new IExecCommands[robots.size()];
+			groundTruthStatus = new RobotStatus[robots.size()];
+			for (int i = 0; i < robots.size(); i++) {
+				groundTruthEvents[i] = robots.get(i).readGroundTruthEvents(currentTurn);
+				groundTruthCommands[i] = robots.get(i).readGroundTruthCommands(currentTurn);
+				groundTruthStatus[i] = robots.get(i).readGroundTruthStatus(currentTurn);
+			}
+		}
+
+		eventDispatcher.onTurnEnded(new TurnEndedEvent(
+				new TurnSnapshot(this, robots, bullets, true), groundTruthEvents, groundTruthCommands,
+				groundTruthStatus));
 
 		super.finalizeTurn();
 	}

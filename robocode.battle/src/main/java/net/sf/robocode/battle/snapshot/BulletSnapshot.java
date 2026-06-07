@@ -71,6 +71,9 @@ public final class BulletSnapshot implements java.io.Serializable, IXmlSerializa
 
 	private double heading;
 
+	/** Victim energy recorded on this bullet's BulletHitEvent (test-only oracle); NaN unless HIT_VICTIM. */
+	private double victimEnergyAtHit = Double.NaN;
+
 	/**
 	 * Creates a snapshot of a bullet that must be filled out with data later.
 	 */
@@ -117,6 +120,8 @@ public final class BulletSnapshot implements java.io.Serializable, IXmlSerializa
 		ownerIndex = bullet.getOwner().getRobotIndex();
 
 		heading = bullet.getHeading();
+
+		victimEnergyAtHit = bullet.getVictimEnergyAtHit();
 	}
 
 	/**
@@ -225,6 +230,13 @@ public final class BulletSnapshot implements java.io.Serializable, IXmlSerializa
 	 */
 	public int getOwnerIndex() {
 		return ownerIndex;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public double getVictimEnergyAtHit() {
+		return victimEnergyAtHit;
 	}
 
 	/**

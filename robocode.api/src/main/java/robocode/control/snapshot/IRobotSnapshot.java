@@ -239,4 +239,60 @@ public interface IRobotSnapshot {
 	 * @return a snapshot of the current score for this robot.
 	 */
 	IScoreSnapshot getScoreSnapshot();
+
+	/**
+	 * Returns the per-turn decomposition of the signed energy changes the engine
+	 * applied to this robot during the turn this snapshot represents.
+	 * <p>
+	 * This is a diagnostic/reconstruction oracle: the decomposition cannot be
+	 * recovered from two post-physics turn snapshots because the engine collapses
+	 * several mid-turn energy events into a single visible energy level.
+	 *
+	 * @return the per-turn energy breakdown, or {@code null} if not captured.
+	 *
+	 * @since 1.9.5.4
+	 */
+	ITurnEnergyBreakdown getEnergyChanges();
+
+	/**
+	 * Returns the realized translational velocity of the robot this turn, before
+	 * any collision handler zeroed it. On a turn with no collision this equals
+	 * {@link #getVelocity()}.
+	 *
+	 * @return the realized velocity this turn, or {@code Double.NaN} if not captured.
+	 *
+	 * @since 1.9.5.4
+	 */
+	double getRealizedVelocity();
+
+	/**
+	 * Returns the robot-to-robot collisions the engine resolved for this robot
+	 * during the turn this snapshot represents.
+	 *
+	 * @return the collisions this turn; an empty array if there were none.
+	 *
+	 * @since 1.9.5.4
+	 */
+	ICollisionSnapshot[] getCollisions();
+
+	/**
+	 * Checks whether the engine performed a radar scan for this robot during the
+	 * turn this snapshot represents (because the robot moved/turned or called
+	 * {@code scan()}).
+	 *
+	 * @return {@code true} if the robot scanned this turn; {@code false} otherwise.
+	 *
+	 * @since 1.9.5.4
+	 */
+	boolean isScanning();
+
+	/**
+	 * Checks whether the engine recorded a skipped turn for this robot for the
+	 * turn this snapshot represents.
+	 *
+	 * @return {@code true} if the turn was skipped; {@code false} otherwise.
+	 *
+	 * @since 1.9.5.4
+	 */
+	boolean wasTurnSkipped();
 }

@@ -63,6 +63,10 @@ public class BulletPeer {
 
 	protected int explosionImageIndex; // Do not set to -1
 
+	// test-only reconstruction diagnostic: the victim energy recorded on this
+	// bullet's BulletHitEvent; NaN unless this bullet hit a robot.
+	private double victimEnergyAtHit = Double.NaN;
+
 	BulletPeer(RobotPeer owner, BattleRules battleRules, int bulletId) {
 		super();
 		this.owner = owner;
@@ -166,6 +170,8 @@ public class BulletPeer {
 				}
 				otherRobot.updateEnergy(-damage);
 
+				otherRobot.recordHitByBulletEnergy(damage);
+
 				boolean teamFire = (owner.getTeamPeer() != null && owner.getTeamPeer() == otherRobot.getTeamPeer());
 
 				if (!teamFire && !otherRobot.isSentryRobot()) {
@@ -186,6 +192,7 @@ public class BulletPeer {
 
 				if (!victim.isSentryRobot()) {
 					owner.updateEnergy(Rules.getBulletHitBonus(power));
+					owner.recordHitOpponentEnergy(Rules.getBulletHitBonus(power));
 				}
 
 				otherRobot.addEvent(
@@ -195,6 +202,8 @@ public class BulletPeer {
 
 				owner.addEvent(
 						new BulletHitEvent(owner.getNameForEvent(otherRobot), otherRobot.getEnergy(), createBullet(false))); // Bugfix #366
+
+				victimEnergyAtHit = otherRobot.getEnergy();
 
 				double newX, newY;
 
@@ -252,6 +261,15 @@ public class BulletPeer {
 
 	public RobotPeer getVictim() {
 		return victim;
+	}
+
+	/**
+	 * @return the victim energy recorded on this bullet's {@code BulletHitEvent}
+	 *         (test-only reconstruction diagnostic), or {@code Double.NaN} if this
+	 *         bullet did not hit a robot.
+	 */
+	public double getVictimEnergyAtHit() {
+		return victimEnergyAtHit;
 	}
 
 	public double getX() {
