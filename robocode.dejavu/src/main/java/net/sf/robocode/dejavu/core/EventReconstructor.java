@@ -211,10 +211,12 @@ public final class EventReconstructor {
         // stamp each event with its class default priority before sorting; the
         // natural order then faithfully reproduces the engine ordering, including
         // the ScannedRobotEvent/HitRobotEvent compareTo tie-break overrides.
-        // DeathEvent is left untouched: its getPriority() override always returns
-        // -1, and setPriorityHidden would clamp a negative value to 0 and warn.
+        // System (critical) events are left untouched: their getPriority()
+        // override already returns their fixed value (e.g. WinEvent -> 100,
+        // DeathEvent -> -1), so stamping them is both unnecessary and would make
+        // the engine clamp/ignore the out-of-range value and warn on the console.
         for (Event event : events) {
-            if (!(event instanceof DeathEvent)) {
+            if (!HiddenAccess.isCriticalEvent(event)) {
                 HiddenAccess.setEventPriority(event, defaultPriority(event));
             }
         }
@@ -703,16 +705,14 @@ public final class EventReconstructor {
 
     /**
      * The engine {@code DEFAULT_PRIORITY} for the class of {@code event}, used to
-     * stamp reconstructed events before the per-tick dispatch sort. DeathEvent is
-     * intentionally absent: its {@code getPriority()} override always returns -1
-     * and it is never passed here.
+     * stamp reconstructed events before the per-tick dispatch sort. System
+     * (critical) events are intentionally absent: they are never passed here
+     * because their {@code getPriority()} override already returns their fixed
+     * value (e.g. WinEvent -> 100, DeathEvent -> -1).
      */
     private static int defaultPriority(Event event) {
         if (event instanceof StatusEvent) {
             return 99;
-        }
-        if (event instanceof WinEvent) {
-            return 100;
         }
         if (event instanceof RobotDeathEvent) {
             return 70;
